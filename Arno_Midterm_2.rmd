@@ -1,0 +1,511 @@
+---
+title: "Arno - Midterm Exam 2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#package
+# # tidyverse includes:
+# ggplot2 (data viz)
+# dplyr(data manipulation)
+# readr(data import)
+# purrr(functional programming)
+# tibble (re-imagining of data frame)
+# stringr (strings)
+# forcats (factors)
+
+packages = c('readxl', 'tidyr', 'ggfortify', 'tidyverse', 'forecast','car', 'ggpubr','agricolae')
+
+#install packages not yet isntalled
+installed_packages = packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+  
+}
+
+#package loading
+invisible(lapply(packages,library,character.only = TRUE))
+```
+
+## Instructions
+
+This R Markdown file includes the questions, the empty code chunk sections for your code, and the text blocks for your responses.  Answer the questions below by completing this R Markdown file. You will submit a *html file* using this file. You may make slight adjustments to get the file to knit/convert but otherwise keep the formatting the same. Once you've finished answering the questions, submit your responses in a single knitted file (just like the homework peer assessments).
+
+There are 8 questions total, each worth between 4-11 points. Partial credit may be given if your code is correct, but your conclusion is incorrect or vice versa. 
+
+*Next Steps:*
+
+1. Save the .Rmd file in your R working directory - the same directory where you will download the "Mortality.csv" data file into. Having both files in the same directory will help in reading the "Mortality.csv" file. 
+
+2. Read the question and create the R code necessary within the code chunk section immediately below each question. Knitting this file will generate the output and insert it into the section below the code chunk. 
+
+3. Type your answer to the questions in the text block provided immediately after the response prompt. 
+
+4. Once you've finished answering all questions, knit this file and submit the knitted file *as html* on Canvas. 
+
+
+### Mock Example Question 5 - 4pts
+
+This will be the exam question - each question is already copied from Canvas and inserted into individual text blocks below, *you do not need to copy/paste the questions from the online Canvas exam.*
+
+```{r}
+# Example code chunk area. Enter your code below the comment`
+```
+
+
+**Mock Response to Question 5**:  This is the section where you type your written answers to the question. Depending on the question asked, your typed response may be a number, a list of variables, a few sentences, or a combination of these elements. 
+
+**Ready? Let's begin.**
+
+## Background
+
+For this exam, you will be looking at a data pertaining to mortality rates in countries throughout the world and using this data to predict the Adult Mortality Rate for that country. 
+
+The data consists of a data frame with 771 observations on the following 9 variables:
+
+1. *Status*: Developed or Developing Country (categorical)
+1. *percentage expenditure*: Healthcare spending as a % of per capita GDP (continuous)
+1. *Measles*: Reported cases per 1000 pop. (discrete)
+1. *under-five deaths*: Deaths of children under 5 per 1000 pop. (discrete)
+1. *Polio*: % of 1-year old population that has been immunized (discrete)
+1. *Diphtheria*: % of 1-year old population that has been immunized (discrete)
+1. *GDP*: Per capita GDP in USD (continuous)
+1. *Schooling*: Number of years of schooling, avg. for pop. (continuous)
+1. *Adult Mortality*: Total Mortality Rate for all Adults (15-60) per 1000 pop. (discrete)
+
+## Read the data
+
+Read the data and answer the questions below using the supplied R Markdown file.
+
+```{r}
+# Load relevant libraries (add here if needed)
+library(car)
+library(aod)
+library(MASS)
+
+# Read the data set
+mortalityFull = read.csv("Mortality.csv",head=T)
+row.cnt = nrow(mortalityFull)
+
+# Split the data into training and testing sets
+mortalityTest = mortalityFull[(row.cnt-9):row.cnt,]
+mortality = mortalityFull[1:(row.cnt-10),]
+attach(mortality)
+```
+
+**Note:** Use *mortality* as your data set for the following questions unless otherwise stated.
+
+**Note:** Treat all variables as quantitative variables, except for *Status*.
+
+
+### Question 1 - 11 points
+
+A) Build a multiple linear regression model named **model1** with *Adult Mortality* as the response variable and all other variables as predicting variables. Include an intercept. Display the summary table of the model.
+
+```{r}
+model1 = lm(Adult_Mortality ~ as.factor(Status) + percentage_expenditure + Measles + under.five_deaths + Polio + Diphtheria + GDP + Schooling + Adult_Mortality, data = mortality)
+summary(model1)
+```
+
+B) Is the overall regression significant at the 0.01 alpha level? Explain.
+
+```{r}
+library(broom)
+glance(model1)$p.value
+```
+
+Answer:
+
+The p-value of the model is ~ 0, therefore it is significant at the $\alpha$ level of 0.01
+
+C) Using **model1**, calculate the Cook's distance of the points in the dataset and create a plot for the Cook's Distances. 
+
+Answer:
+
+```{r}
+cook = cooks.distance(model1)
+plot(cook, type = 'h', lwd = 5, ylab = "Cook's Distance")
+```
+
+
+D) Identify the row number of the observation with the highest Cook's distance. 
+
+Answer:
+
+Observation with highest Cook's distance is row 321 with value of 0.1493571
+```{r}
+subdata = subset(cook, cook > 0.10)
+subdata
+```
+
+
+E) Remove this observation from the *mortality* dataset. Call this new dataset *mortality2* and create a new multiple linear regression model, called *model2*, using same predictors as **model1** with *Adult Mortality* as the response. Display the summary table of this model. Are there any significant differences between the models with and without the outlier? Would you classify this observation as influential? 
+
+```{r}
+# Code to create ate model/summary
+mortality2 = mortality[-c(321)]
+
+
+# Code to calculate cooks distance, create plot, identify row number, create new dataset and new model, etc.
+model2 = lm(Adult_Mortality ~ as.factor(Status) + percentage_expenditure + Measles + under.five_deaths + Polio + Diphtheria + GDP + Schooling + Adult_Mortality, data = mortality2)
+summary(model2)
+```
+
+
+```{r}
+cook2 = cooks.distance(model2)
+plot(cook2, type = 'h', lwd = 5, ylab = "Cook's Distance")
+```
+
+```{r}
+subdata = subset(cook2, cook2 > 0.10)
+subdata
+```
+
+
+**Response to Question 1 B)**: 
+
+**Response to Question 1 D)**:
+
+**Response to Question 1 E)**:
+
+
+
+### Question 2 - 4 points
+
+Using **model2**, calculate the VIF of each of the predictor variables. 
+
+A) Interpret the meaning behind a high VIF.
+
+Answer: 
+
+Normally any predictor with VIF value of over 10 would be considered to have multicolinearity. All variables except Adult_mortality have VIF <10. Adult_Mortlaity has VIF value of 17.1729 and is considered highly corelated with other varaibles in the model.
+
+```{r}
+vif(model2)
+```
+
+B) What is the VIF threshold for this model? Do any of the variables in this model exceed the threshold? 
+
+
+```{r}
+# Code to calculate VIF and VIF threshold
+
+```
+
+**Response to Question 2A)**:
+
+**Response to Question 2B)**:
+
+
+
+### Question 3 - 8 points
+
+A) Using **model2**, create and interpret the following plots with respect to the assumptions of the multiple linear regression model. Be sure to state all the model assumptions that can be assessed by each plot and comment on whether there are any apparent departures from the assumptions.  
+
+ * Plot of the standardized residuals, $r_i$, versus the fitted values, $\hat{y_i}$. 
+
+ * Histogram and q-q plot of the standardized residuals, $r_i$. 
+
+B) Based on your assessment of the model assumptions, do you recommend any transformations of the data? Be specific about the type of transformation and model problem that attempts to fix. Do not apply the recommendation. 
+
+```{r}
+ggplot(data = mortality2, aes(x=percentage_expenditure, y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('percentage_expenditure') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('percent expenditure vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+```{r}
+ggplot(data = mortality2, aes(x=Measles, y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('Measles') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('Measles vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+
+
+```{r}
+ggplot(data = mortality2, aes(x=as.factor(Status), y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('Status') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('Status vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+
+```{r}
+ggplot(data = mortality2, aes(x=under.five_deaths, y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('under.five_deaths') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('under.five_deaths vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+
+```{r}
+ggplot(data = mortality2, aes(x=Polio, y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('Polio') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('Polio vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+
+```{r}
+ggplot(data = mortality2, aes(x=GDP, y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('GDP') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('GDP vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+
+```{r}
+ggplot(data = mortality2, aes(x=Diphtheria, y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('Diphtheria') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('Diphtheria vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+
+```{r}
+ggplot(data = mortality2, aes(x=Schooling, y=Adult_Mortality)) + 
+  geom_point(alpha = I(0.2), color = 'blue') + 
+  xlab('Schooling') + 
+  ylab('Adult_Mortality') + 
+  ggtitle('Schooling vs Adult Mortality') + 
+  geom_smooth(method = 'lm', color = 'gray', se = FALSE)
+```
+
+
+```{r}
+# Code to create plots to check assumptions
+
+
+rp2 = ggplot(data = mortality2, aes(x=model2$fitted.values, y=model2$residuals)) + 
+  geom_point(alpha = I(0.4), color = 'darkorange') + 
+  xlab('Fitted Values') + 
+  ylab('Residuals') + 
+  ggtitle('Residual Plot') + 
+  geom_hline(yintercept = 0)
+
+hp2 = qplot(model2$residuals,
+      geom = 'histogram',
+      bins = 11,
+      main = 'Histogram of Residuals',
+      xlab = 'Residuals',
+      ylab = 'Count',
+      fill = I('blue'),
+      alpha = I(0.2))
+
+qqp2 = ggplot(mortality2, aes(sample = model2$residuals))+
+  stat_qq(alpha=I(0.2), color = 'darkorange') + 
+  stat_qq_line() +
+  ggtitle('Q-Q Plot of Residuals')
+
+ggarrange(rp2, hp2, qqp2, ncol = 2, nrow = 2)
+```
+
+**Response to Question 3 A)**: 
+
+Model Assumption(s) it checks: 
+Interpretation: 
+
+Schooling is the only variable that passes the linearity test. All other variables either have clustering of data or possible non linear relationship.
+
+Residual plots show that residuals increase and some decrease as fitted values increase therefore independence nor constant variance assupmtion are not passed.
+
+Histgram shows that data is normally distributed, but as take deeper look at QQ Plot can see that there's skewness at ends of data.
+
+Model Assumption(s) it checks: 
+Interpretation:
+
+
+**Response to Question 3 B)**: 
+
+
+
+### Question 4 - 5 points
+
+A) Using the data set *mortality2*, build a Poisson regression model named **model3** with *Adult Mortality* as the response variable and all other variables as predicting variables. Include an intercept. Display the summary table of the model. 
+
+Answer:
+
+
+```{r}
+# Code to build model/ perform test for overall regression ...
+model3 = glm(Adult_Mortality ~ as.factor(Status) + percentage_expenditure + Measles + under.five_deaths + Polio + Diphtheria + GDP + Schooling + Adult_Mortality, data = mortality2, family = poisson)
+summary(model3)
+```
+
+
+B) Perform a test for the overall regression, using $\alpha = 0.01$. Does the overall regression have explanatory power? Explain.
+
+**Response to Question 4 B) **: 
+
+Answer:
+The p-value ~ 0 therefore the overall regression of the model is significant at $\alpha$ of 0.01
+
+
+```{r}
+1-pchisq((model3$null.dev - model3$deviance), (model3$df.null - model3$df.resid))
+```
+
+
+
+### Question 5 - 6 points
+
+A) What is the estimated value of the *StatusDeveloping* coefficient in **model2** and **model3**? 
+
+Answer:
+
+The estiamte for $Statusdeveloping$ in model2 is 6.020 and 2.4505 in model3
+```{r}
+summary(model2)
+```
+```{r}
+summary(model3)
+```
+
+
+
+B) Calculate the 99% confidence intervals of the *StatusDeveloping* coefficient for each model. Using these confidence intervals, is the coefficient statistically different from zero at the 0.01 significance level? Explain.
+
+Answer:
+
+The 99% CI for $StatusDeveloping$ in model2 is (-20.9471, 32.98668) and (0.2084083, 0.2726926) in model3.
+
+In model2 the coefficient is not statistically significantly different from 0 since the CI include 0, while in model3 since 0 is not included as part of the CI we can say it is statistically different from 0.
+
+```{r}
+confint(model2, 'as.factor(Status)Developing', level = 0.99)
+```
+
+```{r}
+confint(model3, 'as.factor(Status)Developing', level = 0.99)
+```
+
+C) Interpret the *StatusDeveloping* coefficient in the context of each model. *Note: Make sure that you are treating Developed as the baseline level.*
+
+Answer:
+
+In model2 one unit increase of $StatusDeveloping$  will increase/decreae (depending on CI) of log-odds of adult mortality by 6.020e+00
+
+In model 3 one unit increase of $StatusDeveloping$ will increase log-odds of adult mortality by   2.405e-01
+
+one unit increase of B1 increases/decreaes the log-odds of staying by B1 coefficient
+
+**Response to Question 5 A)**: 
+
+
+**Response to Question 5 B)**: 
+
+
+**Response to Question 5 C)**: 
+
+
+
+### Question 6 - 4 points
+
+Is at least one of the variables *under.five_deaths* and *Diphtheria* statistically significant given all other variables in **model3**? Perform a testing for subset of coefficients. Interpret the results of the test, using alpha=0.05.
+
+
+```{r}
+# Code to perform testing for subset of coefficients,
+
+
+```
+
+**Response to Question 6**:
+
+
+
+### Question 7 - 5 points
+
+Perform a goodness-of-fit statistical test for **model3** using the deviance residuals and $\alpha = 0.01$. Provide the null and alternative hypotheses, test statistic, p-value, and conclusions in the context of the problem. 
+
+Answer:
+
+
+```{r}
+#Deviance residual test
+cat("Deviance residuals test p-value:", 1-pchisq(model3$deviance, model3$df.residual), end="\n")
+```
+
+**Response to Question 7**: 
+
+$H_{0}:$ Model3 has goodness of fit
+
+$H_{a}:$ Model 3 does not have goodness of fit
+
+Goodness of Fit has p-value of 0. Therefore we can reject the null hypothesis that Model3 passes the Goodness of Fit test. Therefore, we must accept alternate hypothesis that Model 3 does not hav a good fit.
+
+**Deviance Test statistic:**
+
+**p-value:**
+
+**Conclusion:**
+
+
+
+### Question 8 - 7 points
+
+A) Estimate *Adult Mortality* for the last 10 rows of data (*mortalityTest*) using both **model2** and **model3**. 
+
+
+Ansewr:
+
+```{r}
+predict(model2,mortalityTest,type="response")
+```
+
+
+```{r}
+predict(model3, mortalityTest, type = 'response')
+```
+
+B) Calculate the Mean Absolute Prediction Error (MAE) and the Precision Measure (PM) of both models. 
+
+Answer:
+
+Model2 has MAE of 62.88696 while Model3 has MAE of 62.3485.
+
+C) Compare and discuss the values obtained in B). Which model performed the best?
+
+Answer:
+
+ So based on MAE only Model3 outperforms Model2 but not by a significantly big margin. In other comparison such as RMSE, MPE and MAPE model2 outperforms Model3.
+
+```{r}
+accuracy(model2)
+```
+
+```{r}
+accuracy(model3)
+```
+
+.
+
+
+**Response to Question 8 B)**:
+
+*Model 2- Mean Absolute Prediction Error (MAE):*
+
+*Model 3- Mean Absolute Prediction Error (MAE):*
+
+*Model 2- Precision Measure (PM):*
+
+*Model 3- Precision Measure (PM):*
+
+**Response to Question 8 C)**:
+
+
+**The end**
