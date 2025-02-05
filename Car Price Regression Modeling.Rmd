@@ -1,0 +1,465 @@
+---
+title: "Car Price Modeling"
+output: html_notebook
+---
+
+
+### Install Packages
+```{r}
+#install packages for statistics
+#install.packages(c("gapminder","dplyr","ggplot2","pheatmap","tidyverse","broom","ggfortify","lmtest","stringr","purrr","caret","relaimpo","randomForest","gbm","plot3D"))
+
+library(gapminder)
+library(dplyr)
+library(ggplot2)
+library(pheatmap)
+library(tidyverse)
+library(broom)
+library(ggfortify)
+library(lmtest)
+library(stringr)
+library(purrr)
+library(caret)
+library(relaimpo)
+library(randomForest)
+library(gbm)
+
+```
+
+
+### Set Working Directory and read data file
+```{r}
+setwd('/Users/arno220512/Documents/Advanced Analytics/R Statistics/R Statistics/data/vehicle dataset')
+getwd()
+#car_df <- read.csv('CAR DETAILS FROM CAR DEKHO.csv')
+car_df <- read.csv('Car details v3.csv')
+
+attach(car_df)
+head(car_df)
+summary(car_df)
+```
+### Data Cleaning
+
+Clean car name to only include manufacture and rename
+```{r}
+car_df$name <- word(car_df$name,1)
+```
+
+
+```{r}
+car_df = car_df %>%
+mutate(eng_pow = parse_number(engine),
+      mil_num = parse_number(mileage),
+      max_pow = parse_number(max_power),
+      age = as.integer(format(Sys.Date(),"%Y")) - car_df$year) %>% 
+mutate(name = word(name,1))%>%
+filter(!is.na(mil_num),
+       !is.na(eng_pow),
+      !is.na(max_pow),
+      !is.na(owner),
+      !mil_num == 0,
+      !eng_pow == 0,
+      !max_pow == 0,
+      km_driven<550000,
+      mil_num<35)
+
+summary(car_df)
+```
+### Data Visualization
+
+The chart below shows type of fuel affects mileage adn Maximum power of hte cars withinthe dataset
+```{r}
+car_df%>%
+filter(max_pow<300)%>%
+ggplot()+geom_point(aes(x=mil_num,y=max_pow,color = fuel))+ 
+labs(title = 'Comparison of Mileage with Maximum Power ',
+     subtitle = 'With respect to Fuel Type',
+    x= 'Mileage in kmpl',
+    y='Maximum Power of Engine in brake Horse Power') 
+```
+
+Box plot showing variation of selling price based on fuel type of cars
+```{r}
+options(warn=-1)
+car_df %>%
+filter(selling_price<700000,
+       km_driven<700000)%>%
+ggplot(aes(x=fuel,y=selling_price,fill=fuel))+
+geom_boxplot(show.legend = FALSE)+
+stat_summary(fun="mean",show.legend = FALSE)+
+labs(title = 'Distribution of Selling Price',
+    subtitle = 'According to Fuel Type',
+    x= 'Fuel Type',
+    y='Selling Price')
+```
+
+Distribution of mileage
+```{r}
+options(warn=-1)
+car_df %>%
+ggplot(aes(x=mil_num,fill=fuel))+
+geom_density(alpha = 0.7)+
+labs(title = 'Distribution of Mileage',
+    subtitle = 'According to Fuel Type',
+    x= 'Mileage',
+    y='')
+```
+
+Box plot showing distribution of cars with selling price considering owner as a factor
+```{r}
+car_df %>%
+filter(selling_price<600000,
+       km_driven<600000)
+car_df$owner=factor(car_df$owner,levels=c('First Owner','Second Owner','Third Owner','Fourth & Above Owner'))
+ggplot(data=car_df,aes(x=owner,y=log(selling_price),fill=owner))+
+geom_boxplot(show.legend = TRUE)+
+stat_summary(fun="mean",show.legend = FALSE)+
+labs(title = 'Distribution of Selling Price',
+    subtitle = 'According to Owner Type',
+    x= 'Owner Type',
+    y='Selling Price')
+```
+
+Histogram showing distribution of cars with age as a factor
+```{r}
+car_df%>%
+group_by(age)%>%
+count()%>%
+ggplot()+geom_col(aes(y=n,x=age))+
+labs(title = 'Age Distribution of Cars at the time of Selling',
+     subtitle= 'Calculated in 2025',
+    x= 'Age of Car',
+    y='Number of Cars')
+```
+
+Bar graph showing distribution of ownership by fuel type
+```{r}
+car_df %>%
+filter(fuel == c('Diesel','Petrol'))%>%
+ggplot()+geom_bar(aes(x=fuel, fill = owner, order = owner))+
+labs(title = 'Distribution of Owner by Fuel Type',
+    x= 'Fuel',
+    y='Number of Cars')
+```
+Show impact of Fuel type on Engine Power by fuel type. Also see if there collenearity
+```{r}
+car_df%>%
+filter(max_pow<300)%>%
+ggplot()+geom_point(aes(x=eng_pow,y=max_pow,color=fuel))+
+labs(title = 'Relation among Engine Power,Maximum Power',
+     subtitle = 'With respect to fuel type',
+    x= 'Enging Power (bhp)',
+    y='Maximum Power')
+```
+
+Distribution of ownership by brand name
+```{r}
+car_df%>%
+group_by(name)%>%
+count()%>%
+arrange(desc(n))%>%
+filter(n>90)%>%
+ggplot()+geom_col(aes(x=n,y=reorder(name,n),fill=name),show.legend = FALSE)+
+geom_label(aes(y = reorder(name,n), x = n, label = paste(round((n/sum(n))*100,2),'%')))+
+labs(title = 'Percentage share of Brands',
+     subtitle = '',
+    x= '# of Cars & Percentage Share',
+    y='Brand Name')
+```
+
+Show distribution of of data based on car manufactuer
+```{r}
+library(ggplot2)
+ggplot(data = car_df, aes(x = name, fill = name)) + geom_bar() + labs(x = "Car Brand") + labs(title = "Distribution by Car Brand") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+### Regression Model 
+
+Dummy Variable Creation
+```{r}
+#install.packages("fastDummies")
+library(fastDummies)
+# Create the dummy columns for specific columns (5, 6, 7, and 8)
+dummy_data <- dummy_cols(car_df[, c(5, 6, 7, 8)], remove_first_dummy = TRUE)
+head(dummy_data)
+summary(dummy_data)
+# Now, select the desired columns from car_df and bind them with the dummy data
+car_df2 <- cbind(car_df, dummy_data[,5:12])
+summary(car_df2)
+car_df_final= car_df2[,c(3:4,13:25)] 
+head(car_df_final)
+
+# Move target column (selling_price) to the end 
+car_df_final <- car_df_final %>% relocate(selling_price, .after = last_col())
+head(car_df_final)
+
+#names(df4)
+model1 = lm(car_df_final)
+summary(model1)
+
+```
+
+
+# Model Estimate, STd. Error, T-value for coefficients
+```{r}
+(summary(model1)$coefficient)
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+plot(model1)
+```
+
+```{r}
+library(ggfortify)
+autoplot(model1)
+```
+
+```{r}
+# Influential values
+ 
+# An influential value is a value, which inclusion or exclusion can alter the results of the regression analysis. Such a value is associated with a large residual.
+# Not all outliers (or extreme data points) are influential in linear regression analysis
+# Statisticians have developed a metric called Cook’s distance to determine the influence of a value. This metric defines influence as a combination of leverage and residual size.
+# A rule of thumb is that an observation has high influence if Cook’s distance exceeds 4/(n - p - 1)(P. Bruce and Bruce 2017), where n is the number of observations and p the number of predictor variables
+# The Residuals vs Leverage plot can help us to find influential observations if any. On this plot, outlying values are generally located at the upper right corner or at the lower right corner. Those spots are the places where data points can be influential against a regression line
+# The following plots illustrate the Cook’s distance and the leverage of our model:
+plot(model1, 4)
+plot(model1, 5)
+plot(model1, 4, id.n = 5)
+
+```
+```{r}
+library(tidyverse)
+library(broom)
+model.diag.metrics <- augment(model1)
+#head(model.diag.metrics)
+
+#loook at top 3 observations with highest cook distance
+model.diag.metrics %>% top_n(3, wt =.cooksd)
+```
+
+```{r}
+# Checking for outliers
+# Find observations with high residuals
+outliers <- which(abs(resid(model1)) > 2 * sd(resid(model1)))
+# Highlights outliers in a scatterplot
+plot(car_df_final$age, car_df_final$selling_price)
+points(data$X[outliers], data$Y[outliers], col = "red", pch = 19)
+
+```
+
+```{r}
+head(model.diag.metrics)
+# Add observations indices and
+# drop some columns (.se.fit, .sigma) for simplification
+model.diag.metrics <- model.diag.metrics %>%
+  mutate(index = 1:nrow(model.diag.metrics)) %>%
+  select(index, everything(), -.se.fit, -.sigma)
+# Inspect the data
+head(model.diag.metrics, 4)
+
+```
+
+```{r}
+
+#Calculate Cook's Distance for each observation
+influential <- cooks.distance(model1)
+
+# ID obs w/ Cook's distance exceeding a threshold
+# (3/n where n is # of obs)
+threshold <- 3 / length(car_df_final$age)
+influencial_obs <- which(influential > threshold)
+
+```
+
+```{r}
+# Highlights influential obs in scatterplot
+plot(car_df_final$age, car_df_final$selling_price)
+points(car_df_final$age[influencial_obs], car_df_final$selling_price[influencial_obs], col = "orange", pch = 19)
+
+```
+
+```{r}
+vif_model <- lm(selling_price ~ ., data = car_df_final)
+
+# Check for multicollinearity by calculating variance inflation fator (VIF)
+library(car)
+vif_values <- vif(vif_model)
+
+print(vif_values)
+
+```
+VIF threshold of 5 for multicollineairty
+Results show eng_pow, fuel_Fiesel, fuel_Petrol have significant levels of multicollinearity (5.5, 38.7, 39 respectively)
+
+
+```{r}
+library(lmtest)
+dwtest(model1)
+```
+
+
+```{r}
+bgtest(model1)
+```
+
+
+```{r}
+bptest(model1)
+```
+```{r}
+# Remove outliers, influential points and variables with high multicollineanrity 
+
+```
+
+
+```{r}
+
+#Supervised ML
+split_size = 0.9
+sample_size = floor(split_size * nrow(car_df_final))
+set.seed(2037001)
+train_indices = sample(seq_len(nrow(car_df_final)), size = sample_size)
+train = car_df_final[train_indices,]
+test = car_df_final[-train_indices,]
+model2= lm(selling_price ~.,data=train)
+#summary(model2)
+#View(train)
+new.data = test[,-1]
+test$output = predict(model2, new.data)
+#test$output
+sqrt(sum(test$selling_price - test$output)^2/nrow(test))
+plot(test$selling_price - test$output)
+
+```
+
+
+
+
+
+
+
+
+# Transform categorical variables - One Hot Encoding
+```{r}
+## One Hot Encode following categorial variablesyear, fuel, seller type, transmission, owner
+
+car_df <- car_df %>% 
+ mutate(car_age =  as.integer(format(Sys.Date(),"%Y")) - car_df$year,
+        fuel_Petrol = ifelse(fuel=='Petrol', 1, 0),
+        fuel_Diesel = ifelse(fuel=='Diesel', 1, 0),
+        fuel_CNG = ifelse(fuel=='CNG', 1, 0),
+        fuel_LPG = ifelse(fuel=='LPG', 1, 0),
+        fuel_Electric = ifelse(fuel=='Electric', 1, 0),
+        sellertype_Individual = ifelse(seller_type=='Individual', 1, 0),
+        sellertype_Dealer = ifelse(seller_type=='Dealer', 1, 0),
+        sellertype_TrustDealer = ifelse(seller_type=='TrustDealer', 1, 0),
+        transmission_Manual = ifelse(transmission=='Manual', 1, 0),
+        transmission_Automatic = ifelse(transmission=='Automatic', 1, 0),
+        owner_First = ifelse(owner=='FirstOwner', 1, 0),
+        owner_Second = ifelse(owner=='SecondOwner', 1, 0),
+        owner_Third = ifelse(owner=='ThirdOwner', 1, 0),
+        owner_FourthPlus = ifelse(owner=='FourthOwner+', 1, 0),
+        owner_TestDrive = ifelse(owner=='TestDrive', 1, 0))
+
+    
+
+# Moves target column to end (selling price) and drop
+car_df <- car_df %>% relocate(selling_price, .after = last_col())
+car_df <- car_df %>% mutate(year = NULL, fuel = NULL, transmission = NULL, owner = NULL, seller_type = NULL, name = NULL)
+
+head(car_df)
+```
+
+Check for Missing values/NAs 
+```{r}
+sapply(car_df2, function(x) sum(is.na(x)))
+```
+
+### Visualizations of features
+
+Bar graph of fuel
+```{r}
+ggplot(data =car_df2, aes(x = reorder(fuel, fuel, function(x) - length(x)), fill = fuel)) + geom_bar() + labs(x = "Fuel") + labs(title = "Bar Graph of FUel Types")
+```
+Diesel adn Petrol are predominantly represented in the data sest across all fuel types
+
+Bar graph by ownership of the car
+```{r}
+ggplot(data = car_df2, aes(x = reorder(owner, owner, function(x) - length(x)), fill = owner)) + geom_bar() + labs(x = "Owner") + labs(title = "Bar Graph of Ownership Type") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+Most of the cars in the data set have had only one owner. Second-hand owners are the second most biggest group with ~1000 cars reperesented
+
+Bar graph by # of seats
+```{r}
+ggplot(data = car_df2, aes(x = reorder(seats, seats, function(x) -length(x)), fill = seats)) + geom_bar() + labs(x = "# of Seats") + labs(title = "Bar Graph of # of Seats") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+Visualize Selling Price 
+```{r}
+ggplot(car_df2, aes(x = selling_price)) + geom_histogram(aes(y = after_stat(density)), colour = "black", fill = "white", bins = 30) + geom_density(alpha = .2, fill = "blue") + labs(x = "Selling Price in USD") + labs(title = "Histogram Graph of Selling Price") + scale_x_continuous(trans = "log10") 
+```
+Distribution of car's selling price seems to be normally distributed
+
+Histogram of Km Driven
+```{r}
+ggplot(car_df2, aes(x = km_driven)) + geom_histogram(color = "black", fill = "blue", bins = 200) + labs(x = "Km Driven") + labs(title = "Histogram Graph of Km Driven") + scale_x_continuous(trans = "log10")
+```
+
+Correlation Matrix
+```{r}
+library(corrplot)
+corrplot(cor(car_df2), type = "full", method = "color", title = "Correlation Plot", mar = c(0,0,1,0), tl.cex = 0.8, outline = T, tl.col = "indianred4")
+```
+```{r}
+#Remove variables with multi collinearity
+car_df <- car_df %>% mutate(fuel_Diesel = NULL, sellertype_Dealer = NULL, transmission_Manual = NULL)
+```
+
+```{r}
+# Drop unnecessary columns from df before proceeding 
+car_df2 <- car_df2 %>% mutate(year = NULL, fuel = NULL, transmission = NULL, owner = NULL, seller_type = NULL, name = NULL, mileage = NULL, engine = NULL, max_power = NULL, torque = NULL, Com = NULL)
+
+```
+
+```{r}
+head(car_df2)
+```
+
+Checking correlation of variables with possible multicollinearity and decide which to remove
+```{r}
+#install.packages("car")
+library(car)
+modeltemp <- lm(selling_price ~ ., data =  car_df2)
+vif(modeltemp)
+```
+
+
+```{r}
+#install.packages("ggcorrplot")
+library(ggcorrplot)
+ggcorrplot(car_df2,)
+```
+### Create a Model
+```{r}
+model1 <- lm(selling_price ~ ., data = car_df2)
+summary(model1)
+```
+```{r}
+(summary(model1)$coefficient)
+```
+```{r}
+plot(model1)
+```
+
+
+### Lineaity Assumption Check
+```{r}
+ggplot(car_df2, aes (x = age, y = log(selling_price))) + geom_point() + geom_smooth(method = "lm")
+```
+
+
+
